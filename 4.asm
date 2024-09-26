@@ -1,28 +1,33 @@
-;Вариант 10:
-;	Вычислить сумму чисел, кратных заданному, а затем поделить это число на произведение положительных чисел
-
-;-+-+-+-Макрос вывода сообщений на экран-+-+-+-
+;************************************************ Макросы ************************************************
+;--------------------------------------------
+;------------------ Вывод -------------------
+;--------------------------------------------
 output macro f1
-		push ax
-		push dx
-		mov dx, offset f1
-		mov ah, 09h
-		int 21h
-		pop dx
-		pop ax
+	push ax
+	push dx
+	mov dx, offset f1
+	mov ah, 09h
+	int 21h
+	pop dx
+	pop ax
 endm
 
-;-+-+-+-Макрос вывода строки символов-+-+-+-
+;--------------------------------------------
+;------------------ Вывод -------------------
+;--------------------------------------------
 input macro f2 	
-		push ax 
-		push dx
-		mov dx, offset f2
-		mov ah, 0Ah
-		int 21h
-		pop dx
-		pop ax
+	push ax 
+	push dx
+	mov dx, offset f2
+	mov ah, 0Ah
+	int 21h
+	pop dx
+	pop ax
 endm
 
+;---------------------------------------------
+;----------------- Рисование -----------------
+;---------------------------------------------
 draw macro xStart, yStart, xEnd, yEnd, color
     push ax
     push dx
@@ -45,41 +50,51 @@ draw macro xStart, yStart, xEnd, yEnd, color
     pop ax
 endm
 
+;--------------------------------------------
+;----------------- Очистка ------------------
+;--------------------------------------------
 clearWindow macro
     mov ax, 0003
     int 10h
 endm
 
-drawTree macro
-		mov cx,8
-	l1:
-		call drawin
-		add bulb_color_1,10h
-		sub bulb_color_2,10h
+;--------------------------------------------
+;----------------- Рисунок ------------------
+;--------------------------------------------
+art macro count
+	call picture
 	
-		mov ah,0
-		int 16h
-		loop l1
+again:
+	mov ah,0
+	int 16h
+	cmp ax, 1c0dh ; Enter
+	je next
+	jmp exiting
+	
+next:
+	test count,1
+	jz stop
+	call picture
+	mov red_bg,0C0h
+	mov yellow_bg,0F0h
+	mov magenta_bg,0D0h
+	mov cyan_bg,0B0h
+
+stop:
+	call picture
+	mov red_bg,40h
+	mov yellow_bg,0E0h
+	mov magenta_bg,50h
+	mov cyan_bg,30h
+
+	inc count
+	loop again
+exiting:
 endm
 
-printStringInWindow macro string, col, row
-    push ax
-    push dx
-    
-    mov ah, 2
-    mov dh, row
-    mov dl, col
-    mov bh, 0
-    int 10h
-    
-    mov ah, 09h
-    mov dx, offset string
-    int 21h
-    
-    pop dx
-    pop ax
-endm
-
+;---------------------------------------------------
+;----------------- Позиция курсора -----------------
+;---------------------------------------------------
 curPos macro x, y
 	push ax
     push dx
@@ -96,582 +111,816 @@ curPos macro x, y
     pop ax
 endm
 
-
+;--------------------------------------------
+;----------------- Вверх --------------------
+;--------------------------------------------
 pressButtonW macro y1, y2, destination
     cmp y1, 0d
     je destination
-	cmp y2, 24d
-    je destination
+
     
     dec y1
-    inc y2
-    
-    jmp destination
-endm
-
-pressButtonS macro y1, y2, destination
-    cmp y1, 8d
-    je destination
-	cmp y2, 17d
-    je destination
-    
-    inc y1
     dec y2
     
     jmp destination
 endm
 
-pressButtonA macro x1, x2, destination
-    cmp x1, 19d
-    je destination
-	cmp x2, 60d
+;--------------------------------------------
+;------------------- Вниз -------------------
+;--------------------------------------------
+pressButtonS macro y1, y2, destination
+	cmp y2, 24d
     je destination
     
-    inc x1
+    inc y1
+    inc y2
+    
+    jmp destination
+endm
+
+;--------------------------------------------
+;------------------ Влево -------------------
+;--------------------------------------------
+pressButtonA macro x1, x2, destination
+    cmp x1, 0d
+    je destination
+    
+    dec x1
     dec x2
     
     jmp destination
 endm
 
+;--------------------------------------------
+;------------------ Вправо ------------------
+;--------------------------------------------
 pressButtonD macro x1, x2, destination
-    cmp x1, 0d
-    je destination
 	cmp x2, 79d
     je destination
     
-    dec x1
+    inc x1
     inc x2
     
     jmp destination
 endm
 
+;*********************************************************************************************************
 
-sleep macro time
-	push ax
-	push cx
-	
-    mov al, 0
-    mov ah, 86h
-    mov cx, time
-    int 15h
-	
-	pop cx
-	pop ax
-endm
-
-
-
+;************************************************* data **************************************************
 d1 SEGMENT para public 'data'
+	inputStr label byte ; вводимая строка, не больше 6 символов
+	size_of_buf db 7 ; размер буфера
+	kol db (?) ; количество введённых символов
+	stroka db 7 dup (?) ; буфер ввода чисел
+	number dw 5 dup (0) ; массив чисел
+	siz dw 5 ; количество чисел
+	posCounter dw 0 ; счётчик положительных
+	counter dw 1 ; счётчик для рисунка
+	windowCounter dw 0 ; счётчик окон
+	
+	sumNeg dw 0 ; сумма отрицательных
+	mulPos dw 0 ; произведение положительных
+	diffRez dw 0 ; разность суммы и произведения
 
-		input_string label byte  ; Cтрока ввода (<=6)
-		size_of_buf db 7         ; Размер буфера
-		kol db (?)               ; Количество введеных символов
-		stroka db 7 dup (?)      ; Буфер ввода чисел
-		number dw 5 dup (0)  	 ; Mассив чисел
-		
-		CratSum dw 0              ; Сумма кратных чисел
-		lenCratSum = $ - CratSum
-		MulPositive dw 0          ; Произведение положительных
-		lenMulPositive = $ - MulPositive
-		Rez_of_Div dw 0           ; Результат деления суммы и произведения
-		lenRez_of_Div = $ - Rez_of_Div
-		size_of_num dw 5          ; Kоличество чисел
-		CratNumber dw 5			  ; Кратное число
+	black_bg db 0h ; чёрный фон
+	white_bg db 70h ; белый фон
+	gray_bg db 80h ; серый фон
 	
-		bulb_color_1 db 30h
-		bulb_color_2 db 40h
-		tree_color db 20h
-		pot_color db 10h
-		window_color db 30h
-		frame_color db 50h
-		
-		window_start_x db 19d
-		window_start_y db 8d
-		window_end_x db 60d
-		window_end_y db 17d
-		
-		frame_start_x db 18d
-		frame_start_y db 7d
-		frame_end_x db 61d
-		frame_end_y db 18d
-		
-		cur_pos_x db 0d
-		cur_pos_y db 0d
+	red_bg db 40h ; красный фон
+	green_bg db 20h ; зелёный фон
+	blue_bg db 10h ; синий фон
 	
-		new_line db 10,13,'$'
-		InputErrText db 'Input Error!', 10,10,'$'
-		zeroError db 'Zero',10,10,'$'
-		overflowMul db 'Multiplication overflow!',10,10,'$'
-		overflow db 'Sum overflow!', 10,10,'$'
-		CratSumLine db 13,10, 'Sum of multiples numbers:                ','$'
-		MulPositiveLine db 13,10, 'Mul of positive element:                 ','$'
-		DivRezLine db 13,10,'Result of divide between Sum and Mul:    ','$'
-		out_str db 6 dup (' '),'$'
-		EnterLine db 'Input number from -29999 to 29999: $'
-		Debug db 'debug', 10,10,'$'
-		pressAnyKey db 'Press any key', 10, '$'
-		
-		treeText db 'Click any button',10,10,'$'
-		resizeText db 'Use WASD to change window size',10,10,'$'
+	brown_bg db 60h ; коричневый фон
+	yellow_bg db 0E0h ; жёлтый фон
 	
-		flag_err equ 1
+	cyan_bg db 30h ; голубой фон
+	magenta_bg db 50h ; сиреневый фон
+	
+	bright_red_bg db 0C0h ; ярко-красный фон
+	bright_green_bg db 0A0h ; ярко-зелёный фон
+	bright_blue_bg db 90h ; ярко-синий фон
+	
+	bright_cyan_bg db 0B0h ; ярко-голубой фон
+	bright_magenta_bg db 0D0h ; ярко-сиреневый фон
+	
+	bright_white_bg db 0F0h ; ярко-белый фон
+	
+	window_start_x db 2d
+	window_start_y db 2d
+	window_end_x db 38d
+	window_end_y db 10d
+	
+	frame_start_x db 1d
+	frame_start_y db 1d
+	frame_end_x db 39d
+	frame_end_y db 11d
+	
+	window_1_window_start_x db 2d
+	window_1_window_start_y db 2d
+	window_1_window_end_x db 38d
+	window_1_window_end_y db 10d
+	
+	window_1_frame_start_x db 1d
+	window_1_frame_start_y db 1d
+	window_1_frame_end_x db 39d
+	window_1_frame_end_y db 11d
+	
+	window_2_window_start_x db 2d
+	window_2_window_start_y db 2d
+	window_2_window_end_x db 38d
+	window_2_window_end_y db 10d
+	
+	window_2_frame_start_x db 1d
+	window_2_frame_start_y db 1d
+	window_2_frame_end_x db 39d
+	window_2_frame_end_y db 11d
+	
+	window_3_window_start_x db 2d
+	window_3_window_start_y db 2d
+	window_3_window_end_x db 38d
+	window_3_window_end_y db 10d
+	
+	window_3_frame_start_x db 1d
+	window_3_frame_start_y db 1d
+	window_3_frame_end_x db 39d
+	window_3_frame_end_y db 11d
+	
+	window_4_window_start_x db 2d
+	window_4_window_start_y db 2d
+	window_4_window_end_x db 38d
+	window_4_window_end_y db 10d
+	
+	window_4_frame_start_x db 1d
+	window_4_frame_start_y db 1d
+	window_4_frame_end_x db 39d
+	window_4_frame_end_y db 11d
+	
+	window_1_cur_pos_x db 0d
+	window_1_cur_pos_y db 0d
+	
+	window_2_cur_pos_x db 0d
+	window_2_cur_pos_y db 0d
+	
+	window_3_cur_pos_x db 0d
+	window_3_cur_pos_y db 0d
+	
+	window_4_cur_pos_x db 0d
+	window_4_cur_pos_y db 0d
+	
+	cur_pos_x db 0d
+	cur_pos_y db 0d
+
+	InputErrText db 'Input Error!', 10,10,'$'
+	overflow db 'Overflow!', 10,10,'$'
+	overflowSum db 'Sum overflow!',10,10,'$'
+	sumNegText db 'Sum of negative: ','$'
+	mulPosText db  'Mul of positive: ','$'
+	diffResText db 'Difference: ','$'
+	outStr db 6 dup (' '),'$'
+	invitation db 'Input number from -29999 to 29999:$'
+	pressAnyKey db 'Press any key', 10, '$'
+	
+	resizeText db 'Use WASD to move window',10,10,'$'
+
+	flagErr equ 1
 d1 ENDS
+;********************************************************************************************************
 
-
-
+;************************************************ stack *************************************************
 st1 SEGMENT para stack 'stack'
-		dw 100 dup (?)
+	dw 100 dup (?)
 st1 ENDS
+;********************************************************************************************************
 
-
-
-;-+-+-+-Точка входа в программу-+-+-+-
+;************************************************* code *************************************************
 c1 SEGMENT para public 'code'
-		ASSUME cs:c1, ds:d1, ss:st1
+	ASSUME cs:c1, ds:d1, ss:st1
+;************************************************* Код **************************************************
 .386
 start:	
-		mov ax, d1
-		mov ds, ax
-	
-		clearWindow
-		
-		drawTree
-	
-		clearWindow
+	mov ax, d1
+	mov ds, ax
 
-resizeWindow:
-		clearWindow
-		output resizeText
-		curPos 85d, 26d
-		
-		draw frame_start_x, frame_start_y, frame_end_x, frame_end_y, frame_color
-		
-		mov al,frame_start_x
-		mov window_start_x,al
-		inc window_start_x
-		
-		mov al,frame_start_y
-		mov window_start_y,al
-		inc window_start_y
-		
-		mov al,frame_end_x
-		mov window_end_x,al
-		dec window_end_x
-		
-		mov al,frame_end_y
-		mov window_end_y,al
-		dec window_end_y
-		
-		draw window_start_x, window_start_y, window_end_x, window_end_y, window_color
-		
-		mov ah, 0
-		int 16h
-    
-		; if <Enter>
-		cmp ax, 1c0dh
-		je startInput
-    
-		; press W
-		cmp al, 77h
-		jne mainWindowsCheckPressA
-		pressButtonW frame_start_y, frame_end_y, resizeWindow
-    
-		; press A
-mainWindowsCheckPressA:
-		cmp al, 61h
-		jne mainWindowsCheckPressS
-		pressButtonA frame_start_x, frame_end_x, resizeWindow
-    
-		; press S
-mainWindowsCheckPressS:
-		cmp al, 73h
-		jne mainWindowsCheckPressD
-		pressButtonS frame_start_y, frame_end_y, resizeWindow
-    
-		; press D
-mainWindowsCheckPressD:
-		cmp al, 64h
-		jne resizeWindow
-		pressButtonD frame_start_x, frame_end_x, resizeWindow
-		
-		
+	clearWindow ; очищаем экран
+	art counter; выводим рисунок
+	
+;--------------------------------------------------
+;----------------- Изменение окна -----------------
+;--------------------------------------------------
+moveWindow:
+	clearWindow
+	output resizeText ; вывод сообщения о работе с окном
+	curPos 85d, 26d ; задаём позицию курсора
+	
+	cmp windowCounter,0
+	je dw0
+	cmp windowCounter,1
+	je dw1
+	cmp windowCounter,2
+	je dw2
+	cmp windowCounter,3
+	je dw3
+	
+dw3:
+	draw window_3_frame_start_x, window_3_frame_start_y, window_3_frame_end_x, window_3_frame_end_y, yellow_bg
+	draw window_3_window_start_x, window_3_window_start_y, window_3_window_end_x, window_3_window_end_y, gray_bg
+	
+dw2:
+	draw window_2_frame_start_x, window_2_frame_start_y, window_2_frame_end_x, window_2_frame_end_y, yellow_bg
+	draw window_2_window_start_x, window_2_window_start_y, window_2_window_end_x, window_2_window_end_y, gray_bg
+	
+dw1:
+	draw window_1_frame_start_x, window_1_frame_start_y, window_1_frame_end_x, window_1_frame_end_y, yellow_bg
+	draw window_1_window_start_x, window_1_window_start_y, window_1_window_end_x, window_1_window_end_y, gray_bg
+	
+dw0:	
+	draw frame_start_x, frame_start_y, frame_end_x, frame_end_y, yellow_bg ; отрисовываем рамку
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_start_x,al
+	inc window_start_x
+	
+	mov al,frame_start_y
+	mov window_start_y,al
+	inc window_start_y
 
-;-+-+-+-Ввод элементов с проверкой-+-+-+-
+	mov al,frame_end_x
+	mov window_end_x,al
+	dec window_end_x
+	
+	mov al,frame_end_y
+	mov window_end_y,al
+	dec window_end_y
+	
+	draw window_start_x, window_start_y, window_end_x, window_end_y, gray_bg ;  отрисовываем окно
+	
+	mov ah, 0
+	int 16h
+    
+	cmp ax, 1c0dh ; Enter
+	je fix
+	
+   
+	cmp al, 77h  ; W
+	jne PressA
+	pressButtonW frame_start_y, frame_end_y, moveWindow 
+    
+	PressA:
+	cmp al, 61h  ; A
+	jne PressS
+	pressButtonA frame_start_x, frame_end_x, moveWindow
+    
+	PressS:
+	cmp al, 73h   ; S
+	jne PressD
+	pressButtonS frame_start_y, frame_end_y, moveWindow
+    
+	PressD:
+	cmp al, 64h   ; D
+	jne moveWindow
+	pressButtonD frame_start_x, frame_end_x, moveWindow
+
+fix:
+	cmp windowCounter,0
+	je fix1
+	cmp windowCounter,1
+	je fix2
+	cmp windowCounter,2
+	je fix3
+	cmp windowCounter,3
+	je fix4
+	
+fix1:
+	mov al,window_start_x ; изменяем координаты для помещения курсора внуть окна
+	mov window_1_cur_pos_x,al
+	
+	mov al,window_start_y
+	mov window_1_cur_pos_y,al
+	
+	inc windowCounter
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_1_frame_start_x,al
+	
+	mov al,frame_start_y
+	mov window_1_frame_start_y,al
+
+	mov al,frame_end_x
+	mov window_1_frame_end_x,al
+		
+	mov al,frame_end_y
+	mov window_1_frame_end_y,al
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_1_window_start_x,al
+	inc window_1_window_start_x
+	
+	mov al,frame_start_y
+	mov window_1_window_start_y,al
+	inc window_1_window_start_y
+
+	mov al,frame_end_x
+	mov window_1_window_end_x,al
+	dec window_1_window_end_x
+	
+	mov al,frame_end_y
+	mov window_1_window_end_y,al
+	dec window_1_window_end_y
+	
+	jmp moveWindow
+	
+fix2:
+	mov al,window_start_x ; изменяем координаты для помещения курсора внуть окна
+	mov window_2_cur_pos_x,al
+	
+	mov al,window_start_y
+	mov window_2_cur_pos_y,al
+	
+	inc windowCounter
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_2_frame_start_x,al
+	
+	mov al,frame_start_y
+	mov window_2_frame_start_y,al
+
+	mov al,frame_end_x
+	mov window_2_frame_end_x,al
+		
+	mov al,frame_end_y
+	mov window_2_frame_end_y,al
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_2_window_start_x,al
+	inc window_2_window_start_x
+	
+	mov al,frame_start_y
+	mov window_2_window_start_y,al
+	inc window_2_window_start_y
+
+	mov al,frame_end_x
+	mov window_2_window_end_x,al
+	dec window_2_window_end_x
+	
+	mov al,frame_end_y
+	mov window_2_window_end_y,al
+	dec window_2_window_end_y
+	
+	jmp moveWindow
+	
+fix3:
+	mov al,window_start_x ; изменяем координаты для помещения курсора внуть окна
+	mov window_3_cur_pos_x,al
+	
+	mov al,window_start_y
+	mov window_3_cur_pos_y,al
+	
+	inc windowCounter
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_3_frame_start_x,al
+	
+	mov al,frame_start_y
+	mov window_3_frame_start_y,al
+
+	mov al,frame_end_x
+	mov window_3_frame_end_x,al
+		
+	mov al,frame_end_y
+	mov window_3_frame_end_y,al
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_3_window_start_x,al
+	inc window_3_window_start_x
+	
+	mov al,frame_start_y
+	mov window_3_window_start_y,al
+	inc window_3_window_start_y
+
+	mov al,frame_end_x
+	mov window_3_window_end_x,al
+	dec window_3_window_end_x
+	
+	mov al,frame_end_y
+	mov window_3_window_end_y,al
+	dec window_3_window_end_y
+	
+	jmp moveWindow
+	
+fix4:
+	mov al,window_start_x ; изменяем координаты для помещения курсора внуть окна
+	mov window_4_cur_pos_x,al
+	
+	mov al,window_start_y
+	mov window_4_cur_pos_y,al
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_4_frame_start_x,al
+	
+	mov al,frame_start_y
+	mov window_4_frame_start_y,al
+
+	mov al,frame_end_x
+	mov window_4_frame_end_x,al
+		
+	mov al,frame_end_y
+	mov window_4_frame_end_y,al
+	
+	mov al,frame_start_x ; уменьшаем координаты для помещения окна внутри рамки
+	mov window_4_window_start_x,al
+	inc window_4_window_start_x
+	
+	mov al,frame_start_y
+	mov window_4_window_start_y,al
+	inc window_4_window_start_y
+
+	mov al,frame_end_x
+	mov window_4_window_end_x,al
+	dec window_4_window_end_x
+	
+	mov al,frame_end_y
+	mov window_4_window_end_y,al
+	dec window_4_window_end_y
+	
 startInput:
-		mov al,window_start_x
-		mov cur_pos_x,al
-		
-		mov al,window_start_y
-		mov cur_pos_y,al
-		
-		curPos cur_pos_x, cur_pos_y
-		
-		xor di,di		
-		mov cx, size_of_num	
-	
-inputVal:	
-		push cx
-	
-check:	
-		output EnterLine
-		inc cur_pos_y
-		input input_string
-		curPos cur_pos_x, cur_pos_y
-		;output new_line  
-	
-		call diapazon		;Проверка диапазона
-		cmp bh, flag_err  	;Сравним bh и flag_err
-		je inErr         	;Если равен 1 сообщение об ошибке ввода
 
-		call dopust			;Проверка допустимости
-		cmp bh, flag_err  	;Сравним bh и flag_err
-		je inErr         	
+	curPos window_1_cur_pos_x, window_1_cur_pos_y ; перемещение курсора
 	
-		call AscToBin 	
-		inc di
-		inc di
-		pop cx
-		loop inputVal
-		jmp searchCratSum
+	xor di,di ; di - номер числа в массиве
+	mov cx, siz	; cx - размер массива
+
+inputVal:	
+	push cx
+
+;--------------------------------------------
+;----------------- Проверки -----------------
+;--------------------------------------------
+check:	
+	output invitation
+	inc window_1_cur_pos_y ; смещаем курсор на строку вниз
+	input inputStr ; ввод числа в виде строки
+	curPos window_1_cur_pos_x, window_1_cur_pos_y ; смещаем курсор на строку вниз
+
+	call range ; проверка диапазона вводимых чисел
+	cmp bh,flagErr ; проверка на наличие ошибок
+	je inErr
+	
+	call acceptable ; проверка допустимости символов
+	cmp bh, flagErr
+	je inErr   
+
+	call AscToBin ; преобразование строки в число
+	add di,0002
+	pop cx
+	loop inputVal
+	jmp sumNegative
 	
 inErr:   		
-		;output InputErr	
-		jmp inputErr
+	jmp inputErr
 	
-;-+-+-+-Нахождение суммы элементов, кратных заданному-+-+-+-
-searchCratSum:
-		mov cx, size_of_num	
-		mov si, offset number
-		xor ax, ax
-sumCrat:
-		mov ax,[si]
-		cmp ax, 0	
-		jnl no_neg
-		neg ax
-no_neg:
-		cwd
-		idiv CratNumber
-		cmp dx,0
-		je e3
-e2:
-		inc si
-		inc si
-		loop sumCrat
-		jmp searchMulPus
-e3:
-		mov ax,[si]
-		add CratSum,ax
-		jo overFlowErr
-		jmp e2 
-		
-;-+-+-+-Нахождение произведения положительных элементов-+-+-+-
-searchMulPus:
-		mov cx, size_of_num				
-		mov si, offset number
+;-----------------------------------------------
+;------------- Сумма отрицательных -------------
+;-----------------------------------------------
+sumNegative:
+	mov cx, siz
+	mov si, offset number
 	
-		mov ax, 1				;для умножения заносим 1
+	xor ax, ax
 	
-plusEl:
-		mov bx,[si]
-		cmp bx, 00h
-		jl minusEl				;если отрицательный - пропускаем
-		imul bx					
-		jo overflowMulErr
+iter2:
+	mov ax,[si]
+	cmp ax,0 ; сравнение с 0
+	jg pos1	; если число больше, то переход
+	add sumNeg,ax ; иначе складываем в переменную
+	jo overflowSumErr ; если переполнение, то переход   
 	
-minusEl:
-		inc si
-		inc si
-		loop plusEl
+pos1:		
+	add si,0002
+	loop iter2
 	
-		cmp ax,0
-		je zeroErr
+;---------------------------------------------------
+;------------- Умножение положительных -------------
+;---------------------------------------------------
+mulPositive:
+	mov cx,siz			
+	mov si,offset number
 	
-		mov MulPositive, ax			;заносим значение в переменную 
+	mov ax,1 ; для умножения заносим 1
+	
+iter1:
+	mov bx,[si]
+	cmp bx,00h ; проверка на отрицательность
+	jl negative1 ; если отрицательный - пропускаем
+	inc posCounter
+	imul bx
+	jo overFlowErr ; если переполнение, то переход	
+	
+negative1:
+	add si,0002
+	loop iter1
+	
+	cmp posCounter,0 ; если положительных нет - заносим 0
+	jne iter3
+	mov ax,0
 
-;-+-+-+-Деление суммы на произведение-+-+-+-
-		mov ax,CratSum
-		cwd
-		idiv MulPositive
-		mov Rez_of_Div,ax
-		jmp resOutput
+iter3:	
+	mov mulPos, ax ; заносим значение в переменную 
 
-;-+-+-+-Вывод ошибок-+-+-+-
-overFlowErr:	
-		draw 27d, 9d, 53d, 16d, 40h
-		
-		;mov cur_pos_x, 34d
-		;mov cur_pos_y, 12d
-		curPos 34d,12d
-		output overflow
-		;mov cur_pos_x, 33d
-		;mov cur_pos_y, 14d
-		curPos 33d,14d
-		output pressAnyKey, 33d, 14d
-	
-		mov ah, 0
-		int 16h
-		
-		jmp progend	
-zeroErr:		
-		draw 27d, 9d, 53d, 16d, 40h
-		
-		;mov cur_pos_x, 34d
-		;mov cur_pos_y, 12d
-		curPos 34d,12d
-		output zeroError
-		;mov cur_pos_x, 33d
-		;mov cur_pos_y, 14d
-		curPos 33d,14d
-		output pressAnyKey, 33d, 14d
-	
-		mov ah, 0
-		int 16h
+;----------------------------------------------------------------
+;---------------- Разность произведения и суммы -----------------
+;----------------------------------------------------------------
+searchDiffSumMul:
+	mov ax, mulPos
+	sub ax, sumNeg
+	mov diffRez, ax
 
-		jmp progend
+	jmp resOutput ; переход к выводу результатов 
+
+;-----------------------------------------------
+;---------------- Вывод ошибок -----------------
+;-----------------------------------------------
+overFlowErr:
+	draw 27d, 9d, 53d, 16d, bright_red_bg
+		
+	curPos 34d,12d
+	output overflow
+		
+	curPos 33d,14d
+	output pressAnyKey, 33d, 14d
+	
+	mov ah, 0
+	int 16h
+		
+	jmp ending	
+		
 inputErr:		
-		draw 27d, 9d, 53d, 16d, 40h
-		
-		;mov cur_pos_x, 34d
-		;mov cur_pos_y, 12d
-		curPos 34d,12d
-		output InputErrText
-		;mov cur_pos_x, 33d
-		;mov cur_pos_y, 14d
-		curPos 33d,14d
-		output pressAnyKey, 33d, 14d
+	draw 27d, 9d, 53d, 16d, bright_red_bg
 	
-		mov ah, 0
-		int 16h
+	curPos 34d,12d
+	output InputErrText
 
-		jmp progend
-overflowMulErr:	
-		draw 27d, 9d, 53d, 16d, 40h
-		
-		;mov cur_pos_x, 34d
-		;mov cur_pos_y, 12d
-		curPos 34d,12d
-		output overflowMul
-		;mov cur_pos_x, 33d
-		;mov cur_pos_y, 14d
-		curPos 33d,14d
-		output pressAnyKey, 33d, 14d
+	curPos 33d,14d
+	output pressAnyKey, 33d, 14d
 	
-		mov ah, 0
-		int 16h
+	mov ah, 0
+	int 16h
 
-		jmp progend		
-;-+-+-+-Вывод полученных результатов-+-+-+-
-resOutput:		
-		clearWindow
-		draw 0d, 0d, 50d, 4d, 0E0h
-		
-		mov cur_pos_x, 0d
-		mov cur_pos_y, 0d
-		
-		curPos cur_pos_x, cur_pos_y
-		
-		output CratSumLine
-		;add cur_pos_x, lenCratSum
-		mov ax, CratSum
-		call BinToAsc
-		output out_str
-		inc cur_pos_y
-		;mov cur_pos_x, 0d
+	jmp ending
+	
+overflowSumErr:	
+	draw 27d, 9d, 53d, 16d, bright_red_bg
 
-		mov cx,6			;очистка буфера вывода
-		xor si,si
+	curPos 34d,12d
+	output overflowSum
+
+	curPos 33d,14d
+	output pressAnyKey, 33d, 14d
+	
+	mov ah, 0
+	int 16h
+	
+	jmp ending
+	
+;---------------------------------------------------
+;---------------- Вывод результата -----------------
+;---------------------------------------------------
+resOutput:	
+	
+	curPos window_2_cur_pos_x, window_2_cur_pos_y
+	output sumNegText
+	mov ax, sumNeg
+	call BinToAsc
+	output outStr
+
+	mov cx,6			;очистка буфера вывода
+	xor si,si
+	
 clear1:		
-		mov [out_str+si],' '
-		inc si
-		loop clear1
+	mov [outStr+si],' '
+	inc si
+	loop clear1
 
-;----------
-		curPos cur_pos_x, cur_pos_y
-		output MulPositiveLine
-		;add cur_pos_x, lenMulPositive
-		mov ax,MulPositive
-		call BinToAsc
-		output out_str
-		inc cur_pos_y
-		;mov cur_pos_x, 0d
+	curPos window_3_cur_pos_x, window_3_cur_pos_y 
+	output mulPosText
+	mov ax,mulPos	
+	call BinToAsc
+	output outStr
 
-		mov cx,6			;очистка буфера вывода
-		xor si,si
+	mov cx,6			;очистка буфера вывода
+	xor si,si
+	
 clear2:		
-		mov [out_str+si],' '
-		inc si
-		loop clear2
+	mov [outStr+si],' '
+	inc si
+	loop clear2
 
-;----------
-		curPos cur_pos_x, cur_pos_y
-		output DivRezLine
-		;add cur_pos_x, lenRez_of_Div
-		mov ax,Rez_of_Div	
-		call BinToAsc
-		output out_str
-		inc cur_pos_y
-		;mov cur_pos_x, 11d
+	curPos window_4_cur_pos_x, window_4_cur_pos_y 
+	output diffResText
+	mov ax,diffRez	
+	call BinToAsc
+	output outStr
 	
-		mov cx,6			;очистка буфера вывода
-		xor si,si
-		
+	mov cx,6			;очистка буфера вывода
+	xor si,si
+	
 clear3:		
-		mov [out_str+si],' '
-		inc si
-		loop clear3
+	mov [outStr+si],' '
+	inc si
+	loop clear3
 
-;----------
-		mov ah, 0
-		int 16h
+	mov ah, 0
+	int 16h
 
-		jmp progend
-progend:	
-		mov ax,4c00h
-		int 21h
+	jmp ending
 	
+ending:	
+	mov ax,4c00h
+	int 21h
 	
-
-DIAPAZON PROC
-		xor bh, bh
-		xor si, si
+;********************************************** Процедуры ***********************************************	
+;--------------------------------------------
+;------------ Проверка диапазона ------------
+;--------------------------------------------
+range PROC
+    xor bh, bh
+	xor si, si
 	
-		cmp kol, 05h 	; Если ввели менее 5 символов, проверим их допустимость
-		jb dop
+	cmp kol, 05h ; выходим,если символов <5
+	jb exit
 		
-		cmp stroka, 2dh 	; Eсли ввели 5 или более символов проверим является ли первый минусом
-		jne plus 	; Eсли 1 символ не минус, проверим число символов
+	cmp stroka, 2dh ; проверка на наличие первого символа минуса
+	jne minus
 	
-		cmp kol, 06h 	; Eсли первый - минус и символов меньше 6 проверим допустимость символов 
-		jb dop        
+	cmp kol, 06h ; выходим, если первый символ - минус,и символов <6
+	jb exit        
 	
-		inc si		; Иначе проверим первую цифру
-		jmp first
+	inc si ; иначе проверим первый символ
+	jmp first
 
-plus:   
-		cmp kol,6	; Bведено 6 символов и первый - не минус 
-		je error1	; Oшибка
+minus:   
+	cmp kol,6 ; если введено 6 символов и первый - не минус - выводим ошибку
+	je error1
 	
 first:  
-		cmp stroka[si], 32h	; Cравним первый символ с '2'
-		jna dop		; Eсли первый <= '2' - проверим допустимость символов
+	cmp stroka[si], 32h ; сравниваем первый символ с '2'
+	jna exit ; выходим,если первый <= '2'
 	
 error1:
-		mov bh, flag_err	; Иначе bh = flag_err
+	mov bh, flagErr ; отмечаем ошибку
 	
-dop:	
-		ret
-DIAPAZON ENDP
+exit:
+	ret
+range ENDP
 
-
-DOPUST PROC
-
-		xor bh, bh
-		xor si, si
-		xor ah, ah
-		xor ch, ch
+;-----------------------------------------------
+;------------ Проверка допустимости ------------
+;-----------------------------------------------
+acceptable PROC
+	xor bh, bh
+    xor si, si
+	xor ah, ah
+	xor ch, ch
 	
-		mov cl, kol	; В (cl) количество введенных символов
+	mov cl, kol	; количество введенных символов
 	
 m11:	
-		mov al, [stroka + si] 	; B (al) - первый символ
-		cmp al, 2dh	; Является ли символ минусом
-		jne testdop	; Если не минус - проверка допустимости
-		cmp si, 00h	; Если минус  - является ли он первым символом
-		jne error2	; Если минус не первый - ошибка
-		jmp m13
+	mov al, [stroka + si] ; первый символ
+	cmp al, 2dh 
+	jne accept	; если не минус - проверка допустимости
+	cmp si, 00h	; если минус  - является ли он первым
+	jne error2	; если не первый - ошибка
+	jmp m13
 	
-testdop:
-		cmp al, 30h	;Является ли введенный символ цифрой
-		jb error2
-		cmp al, 39h
-		ja error2
+accept:
+	cmp al, 30h	; является ли введенный символ цифрой
+	jb error2
+	cmp al, 39h
+	ja error2
 	
 m13: 	
-		inc si
-		loop m11
-		jmp m14
+	inc si
+	loop m11
+	jmp m14
 	
 error2:	
-		mov bh, flag_err	; При недопустимости символа bh = flag_err
+	mov bh, flagErr	; при недопустимости символа bh = flagErr
 	
 m14:	
-		ret
-DOPUST ENDP
+	ret
+acceptable ENDP
 
-
+;--------------------------------------------
+;------------- Из ASCII в число -------------
+;--------------------------------------------
 AscToBin PROC
-		xor ch, ch
-		mov cl, kol
-		xor bh, bh
-		mov bl, cl
-		dec bl
-		mov si, 01h  ; В si вес разряда
+	xor ch, ch
+	mov cl, kol
+	xor bh, bh
+	mov bl, cl
+	dec bl
+	mov si, 01h ; вес разряда
 	
 n1:	
-		mov al, [stroka + bx]
-		xor ah, ah
-		cmp al, 2dh	; Проверим знак числа
-		je otr	; Eсли число отрицательное
-		sub al,	30h
-		mul si
-		add [number + di], ax
-		mov ax, si
-		mov si, 10
-		mul si
-		mov si, ax
-		dec bx
-		loop n1
-		jmp n2
+	mov al, [stroka + bx]
+	xor ah, ah
+	cmp al, 2dh	; проверим знак числа
+	je otr	; если число отрицательное
+	sub al,	30h
+	mul si
+	add [number + di], ax
+	mov ax, si
+	mov si, 10
+	mul si
+	mov si, ax
+	dec bx
+	loop n1
+	jmp n2
 otr:	
-		neg [number + di]	; Представим отрицательное число в дополнительном коде
+	neg [number + di] ; представим отрицательное число в дополнительном коде
 	
 n2:	
-		ret
+	ret
 AscToBin ENDP
 
-
+;--------------------------------------------
+;------------- Из числа в ASCII -------------
+;--------------------------------------------
 BinToAsc PROC
-		xor si, si
-		add si, 05h
-		mov bx, 0Ah
-		push ax
-		cmp ax, 00h
-		jnl mm1
-		neg ax
+	xor si, si
+	add si, 05h
+	mov bx, 0Ah
+	push ax
+	cmp ax, 00h
+	jnl mm1
+	neg ax
 	
 mm1:	
-		cwd
-		idiv bx
-		add dl,30h
-		mov [out_str + si], dl
-		dec si
-		cmp ax, 00h
-		jne mm1
-		pop ax
-		cmp ax, 00h
-		jge mm2
-		mov [out_str + si], 2dh
+	cwd
+	idiv bx
+	add dl,30h
+	mov [outStr + si], dl
+	dec si
+	cmp ax, 00h
+	jne mm1
+	pop ax
+	cmp ax, 00h
+	jge mm2
+	mov [outStr + si], 2dh
 	
 mm2:	
-		ret
+	ret
 BinToAsc ENDP
 
-drawin proc
-	draw 0d, 0d, 80d, 25d, 0F0h
-	draw 0d, 0d, 80d, 19d, 0B0h
-	output treeText
-	draw 12d, 6d, 13d, 7d, 50h
-	draw 12d, 8d, 13d, 9d, tree_color
-	draw 10d, 10d, 15d, 15d, tree_color
-	draw 8d, 12d, 9d, 13d, bulb_color_1
-	draw 16d, 12d, 17d, 13d, bulb_color_2
-	draw 8d, 16d, 17d, 19d, tree_color
-	draw 6d, 18d, 7d, 19d, bulb_color_2
-	draw 18d, 18d, 19d, 19d, bulb_color_1
-	draw 12d, 20d, 13d, 21d, pot_color
+picture proc ; рисунок
+	draw 20d, 2d, 22d, 3d, red_bg
+	draw 14d, 4d, 28d, 4d, red_bg
+	draw 16d, 5d, 26d, 5d, red_bg
+	draw 18d, 6d, 24d, 6d, red_bg
+	draw 16d, 7d, 26d, 8d, red_bg
+
+	draw 20d, 7d, 22d, 7d, green_bg
+	draw 18d, 8d, 24d, 8d, green_bg
+	draw 16d, 9d, 26d, 9d, green_bg
+	draw 14d, 10d, 28d, 10d, green_bg
+	draw 12d, 11d, 30d, 11d, green_bg
+	draw 10d, 12d, 32d, 12d, green_bg
+
+	draw 14d, 13d, 28d, 13d, green_bg
+	draw 12d, 14d, 30d, 14d, green_bg
+	draw 10d, 15d, 32d, 15d, green_bg
+	draw 8d, 16d, 34d, 16d, green_bg
+
+	draw 12d, 17d, 30d, 17d, green_bg
+	draw 10d, 18d, 32d, 18d, green_bg
+	draw 8d, 19d, 34d, 19d, green_bg
+	draw 6d, 20d, 36d, 20d, green_bg
+	draw 4d, 21d, 38d, 21d, green_bg
 	
+	draw 18d, 22d, 24d, 24d, brown_bg
+	
+	draw 8d, 21d, 10d, 21d, cyan_bg
+	draw 12d, 20d, 14d, 20d, cyan_bg
+	draw 16d, 19d, 18d, 19d, cyan_bg
+	draw 20d, 18d, 22d, 18d, cyan_bg
+	draw 24d, 17d, 26d, 17d, cyan_bg
+	draw 28d, 16d, 30d, 16d, cyan_bg
+	
+	draw 12d, 16d, 14d, 16d, magenta_bg
+	draw 16d, 15d, 18d, 15d, magenta_bg
+	draw 20d, 14d, 22d, 14d, magenta_bg
+	draw 24d, 13d, 26d, 13d, magenta_bg
+	draw 28d, 12d, 30d, 12d, magenta_bg
+	
+	draw 12d, 12d, 14d, 12d, yellow_bg
+	draw 16d, 11d, 18d, 11d, yellow_bg
+	draw 20d, 10d, 22d, 10d, yellow_bg
+	draw 24d, 9d, 26d, 9d, yellow_bg
 	ret
-drawin endp
-	  
+picture endp
+;********************************************************************************************************	
+
 c1 ENDS	
+;********************************************************************************************************	
+
 end start
+;********************************************************************************************************	
